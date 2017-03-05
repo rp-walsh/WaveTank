@@ -2,7 +2,7 @@
 %This solver uses the split-step scheme 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-function [x,z,dx,dz,uNew,wNew,P,rho_nph] = ToySolver(input,Lx,Lz,m,n,tFinal,dt,vis)
+function [x,z,dx,dz,time,uNew,wNew,P,rho_nph] = ToySolver(input,Lx,Lz,m,n,tFinal,dt,vis)
 
 %% Define exact solution through input file
 %input_PerXNeuY2;
@@ -53,7 +53,7 @@ zIn = z(2:end-1,:);
         P = Poisson(-g*dzrho_nph,x,z,B,T);
         
         %% Correct for unknown constant
-        PExactDisc = PExact(x,z,0);
+        PExactDisc = PExact(x,z,time-dt/2);
         const = P(10,10) - PExactDisc(10,10);
         P = P - const;
         

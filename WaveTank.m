@@ -16,4 +16,5 @@ dt = tFinal/2^(5);
 %% Turn plotting on/off
 vis = true;
 
+%% Call solver
 [x,z,dx,dz,u,w,P,rho] = ToySolver(input,Lx,Lz,m,n,tFinal,dt,vis);

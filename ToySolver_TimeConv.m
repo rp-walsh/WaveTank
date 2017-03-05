@@ -1,116 +1,48 @@
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-%% This solver uses the split-step scheme 
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%% Main driving code for WaveTank project
 
 clear all; close all;
 
-%% Define exact solution through input file
-input_PerXNeuY2;
+%% Define input file
+input = @input_PerXNeuY;
+input();
 
-%% Define initial conditions
-u0 = @(x,z) uExact(x,z,0);
-w0 = @(x,z) wExact(x,z,0);
-
-%% Create spatial computing mesh
+%% Define spatial mesh parameters
 Lx = 2*pi;
 Lz = 2*pi;
 m = 2^(9);
 n = 2^(9)+2;
-dx = Lx/m;% corrected for periodic grid
-dz = Lz/(n-2);% corrected for staggered grid
-x = 0:dx:Lx-dx;
-z = 0-dz/2:dz:Lz+dz/2;
-[x,z] = meshgrid(x,z);
-xIn = x(2:end-1,:);
-zIn = z(2:end-1,:);
 
-%% loop for temporal convergence
+%% for loop for temporal convergence
 for i = 1:4
-
-    %% Initial condition for velocity
-    uOld = u0(xIn,zIn);
-    wOld = w0(xIn,zIn);
     
     %% Create temporal computing mesh
     tFinal = 1.0;
     dt = tFinal/2^(0+i);
-    N = round(tFinal/dt);
     
-    %% Obtain rho_n+1/2
-    rho_nph = rhoExact(xIn,zIn,dt/2);
-
+    %% Display mesh info
     disp(['Mesh ' num2str(i) ', dt = ' num2str(dt)])
 
-    %% Begin time-stepping
-    for n=1:N
-        
-        time = n*dt;
-        
-        %% Compute drho/dz at n+1/2
-        %dzrho_nph = ([rho_nph(2:end,:); rho_nph(1,:)] - [rho_nph(end,:); ...
-        %                    rho_nph(1:end-1,:)])/dz/2;% Assumes rho is periodic
-        %dzrho_nph = ([rho_nph(2:end,:); -rho_nph(end,:)] - [-rho_nph(1,:); ...
-        %                    rho_nph(1:end-1,:)])/dz/2;% Assumes rho is 0 top and bottom boundary
-        dzrho_nph = ([rho_nph(2:end,:); -rho_nph(end,:)] ...
-                  -  [-rho_nph(1,:); rho_nph(1:end-1,:)] )/dz/2;% Assumes rho is 0 top and bottom boundary
-        %dzrho_nph = [rho_nph(2:end,:); -rho_nph(end,:)] - ...
-        %[-rho_nph(1,:); rho_nph(1:end-1,:)]/2/dz;% Assumes rho 0 on top and bottom boundary
-        
-        %% Define top/bottom Neumann boundary conditions for pressure
-        T = @(x) PExact_z(x,2*pi,time-dt/2);
-        B = @(x) PExact_z(x,0,time-dt/2);
-        
-        %% Solve for Pressure at n+1/2
-        P = Poisson(-g*dzrho_nph,x,z,B,T);
-        
-        %% Correct for unknown constant
-        PExactDisc = PExact(x,z,0);
-        const = P(10,10) - PExactDisc(10,10);
-        P = P - const;
-        
-        %% Compute grad P
-        P_z = (P(3:end,:) - P(1:end-2,:))/2/dz;
-        P_x = ([P(2:end-1,2:end) P(2:end-1,1)] - [P(2:end-1,end) P(2:end-1,1:end-1)])/2/dx;
-        
-        %% Step velocity forward in time
-        uNew = uOld - dt*(P_x);
-        wNew = wOld - dt*(P_z + g*rho_nph);
-        uOld = uNew;
-        wOld = wNew;
-        
-        %% Step density forward in time
-        rho_nph = rho_nph + dt*wNew;
-        
-        %% Compute point-wise errors
-        uError = uNew - uExact(xIn,zIn,time);
-        wError = wNew - wExact(xIn,zIn,time);
-        rhoError = rho_nph - rhoExact(xIn,zIn,time+dt/2);
-
-        if 0
-            %% Plot velocity and error
-            figure(1)
-            surf(xIn,zIn,rho_nph,'Edgecolor','none')
-            title(['Computed u at time = ' num2str(time)])
-            
-            %figure(2)
-            %surf(xIn,zIn,uError,'Edgecolor','none')
-            %title(['PW error in u at time = ' num2str(time)])
-            
-            drawnow
-            pause(0.25)
-        end
-    end
+    %% Turn plotting on/off
+    vis = true;
     
-    %% Compute Inf-norm errors
+    %% Call solver
+    [x,z,dx,dz,time,u,w,P,rho] = ToySolver(input,Lx,Lz,m,n,tFinal,dt,vis);
+    
+    %% Compute point-wise errors
+    uError = u - uExact(x(2:end-1,:),z(2:end-1,:),time);
+    wError = w - wExact(x(2:end-1,:),z(2:end-1,:),time);
+    rhoError = rho - rhoExact(x(2:end-1,:),z(2:end-1,:),time+dt/2);
+    PError = P - PExact(x,z,time-dt/2);    
+
+    %% Compute \infty-norm errors
     uInfError(i) = max(abs(uError(:)));
     wInfError(i) = max(abs(wError(:)));
     rhoInfError(i) = max(abs(rhoError(:)));
     TimeStep(i) = dt;
-
-    disp(['Inf-norm error: ' num2str(uInfError(i))])
-
+    disp(['u Inf-norm error: ' num2str(uInfError(i))])
 end
 
+%% Plot convergence results
 figure
 plot(log(TimeStep),log(uInfError),'o')
 pfit = polyfit(log(TimeStep),log(uInfError),1);
