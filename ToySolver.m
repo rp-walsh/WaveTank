@@ -2,20 +2,17 @@
 %This solver uses the split-step scheme 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-clear all; close all;
+function [x,z,dx,dz,uNew,wNew,P,rho_nph] = ToySolver(input,Lx,Lz,m,n,tFinal,dt,vis)
 
 %% Define exact solution through input file
-input_PerXNeuY2;
+%input_PerXNeuY2;
+input()
 
 %% Define initial conditions
 u0 = @(x,z) uExact(x,z,0);
 w0 = @(x,z) wExact(x,z,0);
 
 %% Create spatial computing mesh
-Lx = 2*pi;
-Lz = 2*pi;
-m = 2^(6);
-n = 2^(6)+2;
 dx = Lx/m;% corrected for periodic grid
 dz = Lz/(n-2);% corrected for staggered grid
 x = 0:dx:Lx-dx;
@@ -32,15 +29,10 @@ zIn = z(2:end-1,:);
     wOld = w0(xIn,zIn);
     
     %% Create temporal computing mesh
-    tFinal = 10.0;
-    %dt = tFinal/2^(0+i);
-    dt = tFinal/2^(5);
     N = round(tFinal/dt);
     
-    %% Obtain rho_n+1/2
+    %% Obtain rho_n+1/2 (use rho(0) when no exact solution)
     rho_nph = rhoExact(xIn,zIn,dt/2);
-
-    %disp(['Mesh ' num2str(i) ', dt = ' num2str(dt)])
 
     %% Begin time-stepping
     for n=1:N
@@ -83,22 +75,18 @@ zIn = z(2:end-1,:);
         wError = wNew - wExact(xIn,zIn,time);
         rhoError = rho_nph - rhoExact(xIn,zIn,time+dt/2);
 
-        if 1
+        if vis
             %% Plot velocity and error
             figure(1)
             surf(xIn,zIn,rho_nph,'Edgecolor','none')
-            title(['Computed rho at time = ' num2str(time)])
+            title(['Computed rho at time = ' num2str(time+1/2)])
             view([0 90]);
             figure(2)
             surf(x,z,P,'Edgecolor','none')
-            title(['Computed P at time = ' num2str(time)])
+            title(['Computed P at time = ' num2str(time+1/2)])
             view([0 90]);
-            %figure(2)
-            %surf(xIn,zIn,uError,'Edgecolor','none')
-            %title(['PW error in u at time = ' num2str(time)])
-            
             drawnow
-            pause(.25)
+            pause(.1)
         end
     end
     
