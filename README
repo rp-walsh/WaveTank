@@ -1,0 +1,19 @@
+This dirctory contains the code to solve the toy gravity wave problem:
+
+\vec{u}_t = -grad(P)-g\rho\hat{z}
+
+div(\vec{u}) = 0
+
+s_t + w = 0
+
+\rho = -s.
+
+This code is meant to be a skeleton for the time-stepping of the full cloud modeling problem.
+
+This code uses a split-step temporal discretization:
+
+Lapl(P)^{n+1/2} = -g\rho_z^{n+1/2}; P_\hat{n} = 0 @ top,bottom; Per. in x
+
+\vec{u}^{n+1} = u^n - dt*(grad(P)^{n+1/2} + g*\rho^{n+1/2}\hat{z})
+
+\rho^{n+3/2} = \rho^{n+1/2} + dt*w^{n+1}
