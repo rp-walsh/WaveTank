@@ -96,22 +96,22 @@ for n=1:N
         subplot(2,2,1)
         surf(xIn,zIn,uNew,'Edgecolor','none')
         title(['Computed u at time = ' num2str(time)])
-        view([0 90]); axis tight;
+        view([0 90]); axis tight; colorbar;
 
         subplot(2,2,2)
         surf(xIn,zIn,wNew,'Edgecolor','none')
         title(['Computed w at time = ' num2str(time)])
-        view([0 90]); axis tight;
+        view([0 90]); axis tight; colorbar;
         
         subplot(2,2,3)
         surf(xIn,zIn,s_nph,'Edgecolor','none')
         title(['Computed rho at time = ' num2str(time+dt/2)])
-        view([0 90]); axis tight;
+        view([0 90]); axis tight; colorbar;
         
         subplot(2,2,4)
         surf(x,z,P,'Edgecolor','none')
         title(['Computed P at time = ' num2str(time-dt/2)])
-        view([0 90]); axis tight;
+        view([0 90]); axis tight; colorbar;
         drawnow
         pause(.1)
     end
