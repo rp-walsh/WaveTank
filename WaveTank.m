@@ -17,4 +17,4 @@ dt = tFinal/2^(5);
 vis = true;
 
 %% Call solver
-[x,z,dx,dz,time,u,w,P,rho] = ToySolver(input,Lx,Lz,m,n,tFinal,dt,vis);
+[x,z,dx,dz,time,u,w,P,s,rho] = ToySolver(input,Lx,Lz,m,n,tFinal,dt,vis);

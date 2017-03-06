@@ -26,11 +26,12 @@ for i = 1:4
     vis = true;
     
     %% Call solver
-    [x,z,dx,dz,time,u,w,P,rho] = ToySolver(input,Lx,Lz,m,n,tFinal,dt,vis);
+    [x,z,dx,dz,time,u,w,P,s,rho] = ToySolver(input,Lx,Lz,m,n,tFinal,dt,vis);
     
     %% Compute point-wise errors
     uError = u - uExact(x(2:end-1,:),z(2:end-1,:),time);
     wError = w - wExact(x(2:end-1,:),z(2:end-1,:),time);
+    sError = s - sExact(x(2:end-1,:),z(2:end-1,:),time+dt/2);
     rhoError = rho - rhoExact(x(2:end-1,:),z(2:end-1,:),time+dt/2);
     PError = P - PExact(x,z,time-dt/2);    
 
@@ -38,6 +39,7 @@ for i = 1:4
     uInfError(i) = max(abs(uError(:)));
     wInfError(i) = max(abs(wError(:)));
     rhoInfError(i) = max(abs(rhoError(:)));
+    sInfError(i) = max(abs(sError(:)));
     TimeStep(i) = dt;
     disp(['u Inf-norm error: ' num2str(uInfError(i))])
 end
@@ -62,6 +64,16 @@ legend('Numerical Convergence',[num2str(pfit(1)) ' + (' num2str(pfit(2)) ')'])
 xlabel('$\log(\Delta t)$','interpreter','latex')
 ylabel('$\log(||w-w_h||_\infty)$','interpreter','latex')
 title('Temporal Convergence of w')
+
+figure
+plot(log(TimeStep),log(sInfError),'o')
+pfit = polyfit(log(TimeStep),log(sInfError),1);
+hold on
+plot(log(TimeStep),pfit(1)*log(TimeStep) + pfit(2));
+legend('Numerical Convergence',[num2str(pfit(1)) ' + (' num2str(pfit(2)) ')'])
+xlabel('$\log(\Delta t)$','interpreter','latex')
+ylabel('$\log(||s-s_h||_\infty)$','interpreter','latex')
+title('Temporal Convergence of s')
 
 figure
 plot(log(TimeStep),log(rhoInfError),'o')

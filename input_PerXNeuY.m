@@ -7,8 +7,10 @@
 % This input file MUST specify atleast the following:
 %                 - uInit(x,z) = initial data for u
 %                 - wInit(x,z) = initial data for w
-%                 - rhoInit(x,z,t) = initial data for rho (time-dependent
-%                                    to maintain conv study functionality)
+%                 - sInit(x,z,t) = initial data for s (time-dependent
+%                                  to maintain conv study functionality)
+%                 - rho(x,z,s) = density as a function of position and
+%                                entropy 
 %                 - PBCT(x,t) = Top Neumann BC for pressure
 %                 - PBCB(x,t) = Top Neumann BC for pressure
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -32,11 +34,13 @@ uExact = @(x,z,t) 2*real(uTmp(k,l,x,z,t) + uTmp(k,-l,x,z,t));
 wExact = @(x,z,t) 2*real(wTmp(k,l,x,z,t) + wTmp(k,-l,x,z,t));
 PExact = @(x,z,t) 2*real(PTmp(k,l,x,z,t) + PTmp(k,-l,x,z,t));
 rhoExact = @(x,z,t) 2*real(rhoTmp(k,l,x,z,t) + rhoTmp(k,-l,x,z,t));
+sExact = @(x,z,t) -rhoExact(x,z,t);
 PExact_z = @(x,z,t) 2*real(1i*l*PTmp(k,l,x,z,t) - 1i*l*PTmp(k,-l,x,z,t));
 
 % Define initial data for u,w,rho and BC's for P.
 uInit = @(x,z) uExact(x,z,0);
 wInit = @(x,z) wExact(x,z,0);
-rhoInit = @(x,z,t) rhoExact(x,z,t);
+sInit = @(x,z,t) sExact(x,z,t);
+rho = @(x,z,s) -s;
 PBCT = @(x,t) zeros(size(x)); 
 PBCB = @(x,t) zeros(size(x)); 

@@ -5,8 +5,10 @@
 %        input = input file for problem specificiation: 
 %                 - uInit(x,z) = initial data for u
 %                 - wInit(x,z) = initial data for w
-%                 - rhoInit(x,z,t) = initial data for rho (time-dependent
-%                                    to maintain conv study functionality)
+%                 - sInit(x,z,t) = initial data for s (time-dependent
+%                                  to maintain conv study functionality)
+%                 - rho(x,z,s) = \rho as a function of position and
+%                                entropy s
 %                 - PBCT(x,t) = Top Neumann BC for pressure
 %                 - PBCB(x,t) = Top Neumann BC for pressure
 %        Lx,Lz = x and z domain boundaries respectivly
@@ -20,10 +22,13 @@
 %         time = final computing time (could be different from tFinal)
 %         uNew,wNew = u and w solutions at t = time
 %         P = P solution at t = time-dt/2
+%         s_nph = s solution at t = time+dt/2
 %         rho_nph = rho solution at t = time+dt/2
+%
+% Ray Walsh -- 2017
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-function [x,z,dx,dz,time,uNew,wNew,P,rho_nph] = ToySolver(input,Lx,Lz,m,n,tFinal,dt,vis)
+function [x,z,dx,dz,time,uNew,wNew,P,s_nph,rho_nph] = ToySolver(input,Lx,Lz,m,n,tFinal,dt,vis)
 
 %% Define exact solution through input file
 input()
@@ -44,8 +49,11 @@ N = round(tFinal/dt);
 uOld = uInit(xIn,zIn);
 wOld = wInit(xIn,zIn);
 
-%% Obtain rho_n+1/2 (use rho(0) when no exact solution)
-rho_nph = rhoInit(xIn,zIn,dt/2);
+%% Obtain s_n+1/2 (use s(0) when no exact solution)
+s_nph = sInit(xIn,zIn,dt/2);
+
+%% Obtain rho_n+1/2 from s_n+1/2
+rho_nph = rho(xIn,zIn,s_nph);
 
 %% Begin time-stepping
 for n=1:N
@@ -75,8 +83,11 @@ for n=1:N
     uOld = uNew;
     wOld = wNew;
     
-    %% Step density forward in time
-    rho_nph = rho_nph + dt*wNew;
+    %% Step entropy forward in time
+    s_nph = s_nph - dt*wNew;
+
+    %% Obtain updated density from updated entropy
+    rho_nph = rho(xIn,zIn,s_nph);
     
     if vis
         %% Plot velocity and error
@@ -93,7 +104,7 @@ for n=1:N
         view([0 90]); axis tight;
         
         subplot(2,2,3)
-        surf(xIn,zIn,rho_nph,'Edgecolor','none')
+        surf(xIn,zIn,s_nph,'Edgecolor','none')
         title(['Computed rho at time = ' num2str(time+dt/2)])
         view([0 90]); axis tight;
         

@@ -16,4 +16,6 @@ Lapl(P)^{n+1/2} = -g\rho_z^{n+1/2}; P_\hat{n} = 0 @ top,bottom; Per. in x
 
 \vec{u}^{n+1} = u^n - dt*(grad(P)^{n+1/2} + g*\rho^{n+1/2}\hat{z})
 
-\rho^{n+3/2} = \rho^{n+1/2} + dt*w^{n+1}
+s^{n+3/2} = s^{n+1/2} - dt*w^{n+1}
+
+\rho^{n+3/2} = F(x,z,s^{n+3/2})
