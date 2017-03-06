@@ -3,7 +3,7 @@
 clear all; close all;
 
 %% Define input file
-input = @input_PerXNeuY;
+input = @input_FourierSoln;
 input();
 
 %% Define spatial mesh parameters
