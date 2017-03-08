@@ -5,8 +5,7 @@
 %        input = input file for problem specificiation: 
 %                 - uInit(x,z) = initial data for u
 %                 - wInit(x,z) = initial data for w
-%                 - sInit(x,z,t) = initial data for s (time-dependent
-%                                  to maintain conv study functionality)
+%                 - sInit(x,z) = initial data for s
 %                 - rho(x,z,s) = \rho as a function of position and
 %                                entropy s
 %                 - PBCT(x,t) = Top Neumann BC for pressure
@@ -50,7 +49,7 @@ uOld = uInit(xIn,zIn);
 wOld = wInit(xIn,zIn);
 
 %% Obtain s_n+1/2 using one step of Heun's method
-s0 = sInit(xIn,zIn,0);% define initial s
+s0 = sInit(xIn,zIn);% define initial s
 rho0 = rho(xIn,zIn,s0);% define initial rho
 
 %% Calculate rho_z as source for initial pressure

@@ -8,8 +8,7 @@
 % This input file MUST specify atleast the following:
 %                 - uInit(x,z) = initial data for u
 %                 - wInit(x,z) = initial data for w
-%                 - sInit(x,z,t) = initial data for s (time-dependent
-%                                  to maintain conv study functionality)
+%                 - sInit(x,z) = initial data for s 
 %                 - rho(x,z,s) = density as a function of position and
 %                                entropy 
 %                 - PBCT(x,t) = Top Neumann BC for pressure
@@ -44,7 +43,7 @@ gauss = @(x,z) exp(-((x-pi).^2 + (z-pi/2).^2)/0.1);
 % Define initial data for u,w,rho and BC's for P.
 uInit = @(x,z) uExact(x,z,0).*gauss(x,z);
 wInit = @(x,z) wExact(x,z,0).*gauss(x,z);
-sInit = @(x,z,t) sExact(x,z,t).*gauss(x,z);
+sInit = @(x,z) sExact(x,z,0).*gauss(x,z);
 rho = @(x,z,s) -10*s.*heaviside(pi-z) + -7*s.*heaviside(z-pi);
 PBCT = @(x,t) zeros(size(x)); 
 PBCB = @(x,t) zeros(size(x)); 
