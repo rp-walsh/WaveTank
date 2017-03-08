@@ -92,27 +92,27 @@ for n=1:N
     if vis
         %% Plot velocity and error
         figure(1)
-
+        
         subplot(2,2,1)
-        surf(xIn,zIn,uNew,'Edgecolor','none')
+        pcolor(xIn,zIn,uNew)
         title(['Computed u at time = ' num2str(time)])
-        view([0 90]); axis tight; colorbar;
+        shading flat; axis equal; colorbar;
 
         subplot(2,2,2)
-        surf(xIn,zIn,wNew,'Edgecolor','none')
+        pcolor(xIn,zIn,wNew)
         title(['Computed w at time = ' num2str(time)])
-        view([0 90]); axis tight; colorbar;
+        shading flat; axis equal; colorbar;
         
         subplot(2,2,3)
-        surf(xIn,zIn,s_nph,'Edgecolor','none')
+        pcolor(xIn,zIn,s_nph)
         title(['Computed rho at time = ' num2str(time+dt/2)])
-        view([0 90]); axis tight; colorbar;
+        shading flat; axis equal; colorbar;
         
         subplot(2,2,4)
-        surf(x,z,P,'Edgecolor','none')
+        pcolor(x,z,P)
         title(['Computed P at time = ' num2str(time-dt/2)])
-        view([0 90]); axis tight; colorbar;
+        shading flat; axis equal; colorbar;
         drawnow
-        pause(.1)
+
     end
 end

@@ -1,15 +1,16 @@
 %% Main driving code for WaveTank project
+clear all; close all;
 
 %% Define input file
 %input = @input_FourierSoln;
-%input = @input_gauss;
-input = @input_JumpRho;
+input = @input_gauss;
+%input = @input_JumpRho;
 
 %% Define spatial mesh parameters
 Lx = 2*pi;
 Lz = 2*pi;
-m = 2^(8);
-n = 2^(8)+2;
+m = 2^(6);
+n = 2^(6)+2;
 
 %% Create temporal computing mesh
 tFinal = 10.0;

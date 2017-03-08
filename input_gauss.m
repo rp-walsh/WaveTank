@@ -31,15 +31,16 @@ k = 6; l = 6;
 % Define exact solution. Note that we have added l and -l solutions: this
 % generates a solution that satisfies homogenuous Neumann BC's in P and
 % homogenuous dirichlet for w and rho (start 0 stay 0)
-uExact = @(x,z,t) 2*real(uTmp(k,l,x,z,t) + uTmp(k,-l,x,z,t));
-wExact = @(x,z,t) 2*real(wTmp(k,l,x,z,t) + wTmp(k,-l,x,z,t));
-PExact = @(x,z,t) 2*real(PTmp(k,l,x,z,t) + PTmp(k,-l,x,z,t));
-rhoExact = @(x,z,t) 2*real(rhoTmp(k,l,x,z,t) + rhoTmp(k,-l,x,z,t));
+% Remove l or -l solution for one-way wave solution
+uExact = @(x,z,t) 2*real(uTmp(k,l,x,z,t) + 0.*uTmp(k,-l,x,z,t));
+wExact = @(x,z,t) 2*real(wTmp(k,l,x,z,t) + 0.*wTmp(k,-l,x,z,t));
+PExact = @(x,z,t) 2*real(PTmp(k,l,x,z,t) + 0.*PTmp(k,-l,x,z,t));
+rhoExact = @(x,z,t) 2*real(rhoTmp(k,l,x,z,t) + 0.*rhoTmp(k,-l,x,z,t));
 sExact = @(x,z,t) -rhoExact(x,z,t);
 PExact_z = @(x,z,t) 2*real(1i*l*PTmp(k,l,x,z,t) - 1i*l*PTmp(k,-l,x,z,t));
 
 % Define gaussian for initial data
-gauss = @(x,z) exp(-((x-pi).^2 + (z-pi).^2)/0.1);
+gauss = @(x,z) exp(-((x-pi).^2 + (z-pi).^2)/1.);
 
 % Define initial data for u,w,rho and BC's for P.
 uInit = @(x,z) uExact(x,z,0).*gauss(x,z);
