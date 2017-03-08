@@ -49,8 +49,33 @@ N = round(tFinal/dt);
 uOld = uInit(xIn,zIn);
 wOld = wInit(xIn,zIn);
 
-%% Obtain s_n+1/2 (use s(0) when no exact solution)
-s_nph = sInit(xIn,zIn,dt/2);
+%% Obtain s_n+1/2 using one step of Heun's method
+s0 = sInit(xIn,zIn,0);% define initial s
+rho0 = rho(xIn,zIn,s0);% define initial rho
+
+%% Calculate rho_z as source for initial pressure
+% Assumes rho is 0 top and bottom boundary
+dzrho0 = ([rho0(2:end,:); -rho0(end,:)] ...
+                 -  [-rho0(1,:); rho0(1:end-1,:)] )/dz/2;
+
+%% Define top/bottom Neumann boundary conditions for pressure
+T = @(x) PBCT(x,0);
+B = @(x) PBCB(x,0);
+
+%% Solve for Pressure at t = 0
+P = Poisson(-g*dzrho0,x,z,B,T);
+
+%% Compute P_z for wTld update
+P_z = (P(3:end,:) - P(1:end-2,:))/2/dz;
+
+%% Compute \tilde{y}_{i+1} for Heun's meth. update 
+wTld = wOld - (dt/2)*(P_z + g*rho0);
+
+%% Update s using Heun's method
+s_nph = s0 - (dt/4)*(wOld + wTld);
+
+%% Clear tmp variables
+clear s0 rho0 dzrho0 wTld
 
 %% Obtain rho_n+1/2 from s_n+1/2
 rho_nph = rho(xIn,zIn,s_nph);
@@ -61,14 +86,14 @@ for n=1:N
     time = n*dt;
     
     %% Compute drho/dz at n+1/2
-    %dzrho_nph = ([rho_nph(2:end,:); rho_nph(1,:)] - [rho_nph(end,:); ...
-    %                    rho_nph(1:end-1,:)])/dz/2;% Assumes rho is periodic
-    dzrho_nph = ([rho_nph(2:end,:); -rho_nph(end,:)] ...
-                 -  [-rho_nph(1,:); rho_nph(1:end-1,:)] )/dz/2;% Assumes rho is 0 top and bottom boundary
     
-    %% Define top/bottom Neumann boundary conditions for pressure
-    T = @(x) PBCT(x,time-dt/2);
-    B = @(x) PBCB(x,time-dt/2);
+    % Assumes rho is periodic
+    %dzrho_nph = ([rho_nph(2:end,:); rho_nph(1,:)] - [rho_nph(end,:); ...
+    %                    rho_nph(1:end-1,:)])/dz/2;
+    
+    % Assumes rho is 0 top and bottom boundary
+    dzrho_nph = ([rho_nph(2:end,:); -rho_nph(end,:)] ...
+                 -  [-rho_nph(1,:); rho_nph(1:end-1,:)] )/dz/2;
     
     %% Solve for Pressure at n+1/2
     P = Poisson(-g*dzrho_nph,x,z,B,T);
