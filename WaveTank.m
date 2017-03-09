@@ -3,7 +3,8 @@ clear all; close all;
 
 %% Define input file
 %input = @input_FourierSoln;
-input = @input_gauss;
+%input = @input_gauss;
+input = @input_WavePacket;
 %input = @input_JumpRho;
 
 %% Define spatial mesh parameters
