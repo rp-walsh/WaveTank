@@ -15,6 +15,7 @@
 %        tFinal = final computing time
 %        dt = time-step
 %        vis = boolian visual parameter
+%        sv = boolian save parameter
 % outputs:
 %         x,z = x and z mesh coordinates (meshgrid format)
 %         dx,dz = mesh spacing in x and y
@@ -27,10 +28,7 @@
 % Ray Walsh -- 2017
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-function [x,z,dx,dz,time,uNew,wNew,P,s_nph,rho_nph] = ToySolver(input,Lx,Lz,m,n,tFinal,dt,vis)
-
-%% Define exact solution through input file
-input()
+function [x,z,dx,dz,time,uNew,wNew,P,s_nph,rho_nph] = ToySolver(input,Lx,Lz,m,n,tFinal,dt,vis,sv)
 
 %% Create spatial computing mesh
 dx = Lx/m;% corrected for periodic grid
@@ -43,6 +41,9 @@ zIn = z(2:end-1,:);
 
 %% Create temporal computing mesh
 N = round(tFinal/dt);
+
+%% Define exact solution through input file
+input()
 
 %% Initial condition for velocity
 uOld = uInit(xIn,zIn);
@@ -83,7 +84,9 @@ rho_nph = rho(xIn,zIn,s_nph);
 for n=1:N
     
     time = n*dt;
-    
+
+    disp(['Time: ' num2str(time) '; Step: ' num2str(n) '/' num2str(N)])
+
     %% Compute drho/dz at n+1/2
     
     % Assumes rho is periodic
@@ -112,31 +115,49 @@ for n=1:N
 
     %% Obtain updated density from updated entropy
     rho_nph = rho(xIn,zIn,s_nph);
-    
+
+    if n == 1
+        uMax = max(uNew(:));
+        uMin = min(uNew(:));
+        wMax = max(wNew(:));
+        wMin = min(wNew(:));
+    end
+
+    uMaxOut = max(uNew(:));
+    disp(['uMax: ' num2str(uMaxOut)])
+
     if vis
         %% Plot velocity and error
-        figure(1)
+        fig = figure(1);
         
         subplot(2,2,1)
         pcolor(xIn,zIn,uNew)
         title(['Computed u at time = ' num2str(time)])
-        shading flat; axis equal; colorbar;
+        shading flat; axis equal; colorbar; axis([0 2*pi 0 2*pi]);
+        caxis([uMin,uMax])
 
         subplot(2,2,2)
         pcolor(xIn,zIn,wNew)
         title(['Computed w at time = ' num2str(time)])
-        shading flat; axis equal; colorbar;
-        
+        shading flat; axis equal; colorbar; axis([0 2*pi 0 2*pi]);
+        caxis([uMin,uMax])
+
         subplot(2,2,3)
         pcolor(xIn,zIn,s_nph)
         title(['Computed rho at time = ' num2str(time+dt/2)])
-        shading flat; axis equal; colorbar;
+        shading flat; axis equal; colorbar; axis([0 2*pi 0 2*pi]);
         
         subplot(2,2,4)
         pcolor(x,z,P)
         title(['Computed P at time = ' num2str(time-dt/2)])
-        shading flat; axis equal; colorbar;
+        shading flat; axis equal; colorbar; axis([0 2*pi 0 2*pi]);
         drawnow
-
     end
+    
+    if (~mod(n,round(N/20)) | n==1) & sv
+        str = ['AsymSol_t' num2str(time) '.jpg'];
+        saveas(fig,str);
+        disp(['Saved at time t = ' num2str(time)])
+    end
+    
 end

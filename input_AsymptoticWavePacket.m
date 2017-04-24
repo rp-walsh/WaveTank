@@ -18,11 +18,20 @@
 % Define gravity and dispersion relation
 g = 9.81; omega = @(k,l) sqrt(g*k^2/(k^2+l^2)); c = 1. ;
 G = @(x,z) exp(-((x-pi).^2 + (z-pi).^2)/c);
+Gx = @(x,z) -2*(x-pi)/c.*G(x,z);
+Gz = @(x,z) -2*(z-pi)/c.*G(x,z);
 
 % Define Fourier type initial data as a function of wavenumbers k and l
-sTmp = @(k,l,x,z,t) G(x,z).*exp(1i*(k*x + l*z + omega(k,l)*t)).*(-2*(x-pi)/c + 1i*k);
-wTmp = @(k,l,x,z,t) -1i*omega(k,l)*G(x,z).*exp(1i*(k*x + l*z + omega(k,l)*t)).*(-2*(x-pi)/c + 1i*k);
-uTmp = @(k,l,x,z,t)  1i*omega(k,l)*G(x,z).*exp(1i*(k*x + l*z + omega(k,l)*t)).*(-2*(z-pi)/c + 1i*l);
+sTmp = @(k,l,x,z,t) (1i*k^2*G(x,z) - (2*k^2*l^2*omega(k,l)^3)/(omega(k,l)*k^3*g)*Gx(x,z)...
+                     + ((2*k^2*l*omega(k,l)^3)/(omega(k,l)*k^2*g) - k^2/l)*Gz(x,z))...
+                     .*exp(1i*(k*x + l*z - omega(k,l)*t));
+wTmp = @(k,l,x,z,t) (-k^2*omega(k,l)*G(x,z) - (1i*k^2*l^2*omega(k,l)^3)/(k^3*g)*Gx(x,z)...
+                     + ((1i*k^2*l*omega(k,l)^3)/(k^2*g) - 1i*k^2*omega(k,l)/l)*Gz(x,z))...
+                     .*exp(1i*(k*x + l*z - omega(k,l)*t));       
+uTmp = @(k,l,x,z,t) (k*l*omega(k,l)*G(x,z) + ((1i*k*l^3*omega(k,l)^3)/(k^3*g) ...
+                                              + 1i*l*omega(k,l))*Gx(x,z)...
+                     - (1i*k*l^2*omega(k,l)^3)/(k^2*g)*Gz(x,z))...
+                     .*exp(1i*(k*x + l*z - omega(k,l)*t));       
 
 % Define k and l (k = 0,+/- 1, ... l = n/2, n=0,+/- 1, ...)
 k = 12; l = 12;
