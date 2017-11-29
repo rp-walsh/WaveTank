@@ -1,0 +1,66 @@
+%% This input file sets up the open contour example used in my masters
+%% thesis to be run with the current codes that I have. Note that the
+%% closed contour example cannot be run currently due to the boundary
+%% conditions.
+
+g= 9.81;
+epsilon = 0.4;
+per = 4*pi;
+shft = sqrt(2)-.12;
+delta = 0.5;
+pow = 1;% must be >=1
+har = @(x,y) .001*exp(2*pi*y).*sin(2*pi*x);
+rl = @(x,y) y - 1/2 -epsilon*sin(per*(x-shft));
+SExact = @(x,z,t) rl(x,z);
+d = @(x) 1/2 + epsilon*sin(per*(x-shft));
+f = @(x,y) 1 + delta*y.^pow;
+I1 = @(x,y) y + delta*y.^(pow+1)/(pow+1);
+I2 = @(x,y) y.*(y/2 - 1/2 - epsilon*sin(per*(x-shft)) + ...
+     delta*(y.^(pow+1)/(pow+2) - y.^pow/(2*(pow+1)) - ...
+            y.^pow/(pow+1)*epsilon.*sin(per*(x-shft))));
+I3 = @(x,y) y.^pow.*(y/(pow+1) - 1/(2*pow) - epsilon*sin(per*(x-shft))/pow);
+I4 = @(x,y) y.^(pow-1).*((2*epsilon*sin(per*(x-shft))+1).^2/4 - ...
+                         (pow-1)*y.*(2*epsilon*sin(per*(x-shft))+1)/pow + ...
+                         (pow-1)*y.^2/(pow+1));
+P1 = @(x,y) rl(x,y).^2.*f(x,y);% x in Omega+
+P2 = @(x,y) -rl(x,y).^2;% x in Omega-
+PExact = @(x,y,t) P2(x,y).*heaviside(-rl(x,y)) + P1(x,y).*heaviside(rl(x,y));% + har(x,y);
+rl_z = @(x,z) ones(size(x));
+rl_x = @(x,z) -epsilon*per*cos(per*(x-shft));
+f_z = @(x,z) pow*delta*z.^(pow-1);
+har_z = @(x,z) 2*pi*.001*exp(2*pi*z).*sin(2*pi*x);
+har_x = @(x,z) 2*pi*.001*exp(2*pi*z).*cos(2*pi*x);
+
+rho1 = @(x,y) 2*((1 + (epsilon*per*cos(per*(x-shft))).^2).*(I1(x,y) - I1(x,d(x))) + ...
+                 epsilon*per^2*sin(per*(x-shft)).*(I2(x,y) - I2(x,d(x)))) + ...
+       4*pow*delta*(I3(x,y) - I3(x,d(x))) + ...
+       pow*delta*(I4(x,y) - I4(x,d(x))) - ...
+       2*d(x).*(1 + per^2*epsilon^2*cos(per*(x-shft)).^2 +...
+                epsilon*per^2*sin(per*(x-shft)).*...
+             (d(x)/2-1/2-epsilon*sin(per*(x-shft))));% x in Omega+
+rho2 = @(x,y) -2*y.*(1 + per^2*epsilon^2*cos(per*(x-shft)).^2 +...
+                     epsilon*per^2*sin(per*(x-shft)).*...
+                     (y/2-1/2-epsilon*sin(per*(x-shft))));% x in Omega-
+rhoExact = @(x,y,t) (rho2(x,y).*heaviside(-rl(x,y)) + rho1(x,y).*heaviside(rl(x,y)))/-g;
+drhodz1 = @(x,y) 2*f(x,y).*(1 + (per*epsilon*cos(per*(x-shft))).^2 ...
+                            + rl(x,y).*(epsilon*per^2*sin(per*(x-shft)))) + ...
+          4*rl(x,y)*pow*delta.*y.^(pow-1) + ...
+          rl(x,y).^2*pow*(pow-1)*delta.*y.^(pow-2);% x in Omega+
+drhodz2 = @(x,y) -2*(1 + (per*epsilon*cos(per*(x-shft))).^2 ...
+               + rl(x,y).*(epsilon*per^2*sin(per*(x-shft))));% x in Omega-
+drhodz = @(x,y) drhodz2(x,y).*heaviside(-rl(x,y)) + drhodz1(x,y).*heaviside(rl(x,y));
+PBCT = @(x,t) 2*f(x,1).*rl(x,1) + delta*pow*rl(x,1).^2;% ...
+         %+ .001*exp(2*pi)*2*pi*sin(2*pi*x);% top neumann BC with harmonic fn
+PBCB = @(x,t) -2*rl(x,0);% + .001*2*pi*sin(2*pi*x);% bottom neumann BC with harmonic fn
+
+PzExact1 = @(x,z) 2*rl(x,z).*f(x,z).*rl_z(x,z) + rl(x,z).^2.*f_z(x,z);% + har_z(x,z);
+PzExact2 = @(x,z) -2*rl(x,z).*rl_z(x,z);% + har_z(x,z);
+
+PxExact1 = @(x,z) 2*rl(x,z).*f(x,z).*rl_x(x,z) + har_x(x,z);
+PxExact2 = @(x,z) -2*rl(x,z).*rl_x(x,z) + har_x(x,z);
+
+PzExact = @(x,z,t) PzExact2(x,z).*heaviside(-rl(x,z)) + PzExact1(x,z).*heaviside(rl(x,z));
+PxExact = @(x,z,t) PxExact2(x,z).*heaviside(-rl(x,z)) + PxExact1(x,z).*heaviside(rl(x,z));
+%PxExact = @(x,z,t) zeros(size(x));
+
+%jump = @(x,z) drhodz1(x,z) - drhodz2(x,z);

@@ -13,9 +13,6 @@ function [sol]=Poisson(f,x,y,B,T)
 %
 % Ray Walsh -- 2016
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-%clear all; close all
-%% Define initial parameters
-IIM=0;
 
 %% Extract key info from inputs
 m = size(x,2);

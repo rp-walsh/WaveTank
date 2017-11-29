@@ -1,0 +1,93 @@
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% Gradient.m
+%
+% Function built to compute the gradient of a c1 function using the
+% second order IIM discretization
+%
+% Inputs:- f = c1 function to take gradient of
+%          hz = mesh spacin
+%          phi = level--set function defining interface
+%          jump = function that gives the jump in the second derivative
+%                 in the normal direction along the interface i.e. req
+%                 jump info.
+%          x,z = mesh coordinates. Note that this function assumes
+%                periodic strcture in x. i.e. f, phi, x, z don't contain
+%                the right periodic end point.
+%
+% Outputs:- f_x = corrected x--derivative (Not yet implemented)
+%           f_z = corrected z--derivative
+%           IregNodes = z--irregular nodes
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+function [f_x,f_z,IregNodes] = Gradient(f,hz,phi,jump,x,z)
+
+    %% Fix size of phi to be same as f
+    phi = [phi(1,:); phi; phi(end,:)];
+    
+    %% Compute naive derivatives
+    f_z = (f(3:end,:) - f(1:end-2,:))/2/hz;
+    f_x = (f(:,3:end) - f(:,1:end-2))/2/hz; % Update code for this later
+    
+    %% Find irregular nodes for IIM correction
+    IregNodes = FindIregNodes(phi,'dz');
+    
+    %% Compute stencil info 
+    info = StencilInfo(IregNodes,phi,x,z);
+    
+    %% Compute orthogonal projections 
+    proj = OrthogProjInfo(info,phi,x,z);
+    %proj = x(IregNodes)';
+    %proj(2,:) = gamma(proj(1,:));
+    
+    %% Compute normal vector at each projection
+    [normal,LCoords,theta] = LocalCoords(info,phi,x,z,proj);
+
+    %% Chose node for testing
+    TstNode = 0;
+    
+    %% Compute IIM Corrections
+    Dzcoeff = [0; 1/(2*hz); -1/(2*hz)];
+    correction = sparse(size(f,1),size(f,2));
+
+    for k = 1:size(info,3)
+
+        DzNodesInfo = info([true true false true false],:,k);
+        LCoordsDzNodes = LCoords([true true false true false],k);
+        plus_Dznodes_xi = LCoordsDzNodes(logical(DzNodesInfo(:,4))).';
+        Dzcorr = (plus_Dznodes_xi.^2/2)*Dzcoeff(logical(DzNodesInfo(:,4)));
+        side = info(1,5,k);
+
+        if side == 0
+            correction(IregNodes(k)) = Dzcorr*jump(proj(1,k),proj(2,k));
+        else
+            correction(IregNodes(k)) = -Dzcorr*jump(proj(1,k),proj(2,k));
+        end
+
+        if k==TstNode
+
+            %% Ploting mesh and IregNode data
+            figure(111)
+            mesh(x,z,zeros(size(z)));
+            hold on
+            contour(x,z,phi,[0 0],'r-')
+            plot(x(IregNodes),z(IregNodes),'bo')
+            view([0,90])
+
+            IregNode = IregNodes(TstNode);
+            plot(x(IregNode),z(IregNode),'ro')
+            plot(proj(1,TstNode),proj(2,TstNode),'kx')
+            NodeInfo = info([true true false true false],:,TstNode);
+            plot(x(NodeInfo(:,1)),z(NodeInfo(:,1)),'ro')
+            plot([proj(1,TstNode) proj(1,TstNode)+normal(1,TstNode)/5],...
+                 [proj(2,TstNode) proj(2,TstNode)+normal(2,TstNode)/5]);
+            hold off;
+            
+        end
+
+    end
+    
+    correction(1,:) = [];
+    correction(end,:) = [];
+    f_z = f_z - correction;
+    
+end

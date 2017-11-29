@@ -1,0 +1,504 @@
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% This solver approximates solutions to the toy gravity wave problem
+% described in README. 
+% inputs:
+%        input = input file for problem specificiation: 
+%                 - uInit(x,z) = initial data for u
+%                 - wInit(x,z) = initial data for w
+%                 - sInit(x,z) = initial data for s
+%                 - rho(x,z,s) = \rho as a function of position and
+%                                entropy s
+%                 - PBCT(x,t) = Top Neumann BC for pressure
+%                 - PBCB(x,t) = Top Neumann BC for pressure
+%        Lx,Lz = x and z domain boundaries respectivly
+%        m,n = number of points in x and y respectivly
+%        tFinal = final computing time
+%        dt = time-step
+%        vis = boolian visual parameter
+%        sv = boolian save parameter
+%        err = boolian error parameter
+% outputs:
+%         x,z = x and z mesh coordinates (meshgrid format)
+%         dx,dz = mesh spacing in x and y
+%         time = final computing time (could be different from tFinal)
+%         uNew,wNew = u and w solutions at t = time
+%         P = P solution at t = time-dt/2
+%         s_nph = s solution at t = time+dt/2
+%         rho_nph = rho solution at t = time+dt/2
+%
+% tweaks:
+%        - Differentiating the density requires a code chage depending on
+%          run. In particular for the WtrLssCld case we cannot assume rho
+%          is 0 top and bottom.
+% Ray Walsh -- 2017
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+function [x,z,dx,dz,time,uNew,wNew,P,s_nph,rho_nph] = ToySolver(input,Lx,Lz,m,n,tFinal,dt,vis,sv,err)
+
+%% Create spatial computing mesh
+dx = Lx/m;% corrected for periodic grid
+dz = Lz/(n-2);% corrected for staggered grid
+x = 0:dx:Lx-dx;
+z = 0-dz/2:dz:Lz+dz/2;
+[x,z] = meshgrid(x,z);
+xIn = x(2:end-1,:);
+zIn = z(2:end-1,:);
+
+%% Create temporal computing mesh
+N = round(tFinal/dt);
+
+%% Define exact solution through input file
+input()
+
+%% Plot Initial data + background
+figure(1)
+surf(xIn,zIn,uInit(xIn,zIn) + uBkg(xIn,zIn),'edgecolor','none')
+title('Initial u + Background')
+shading flat; axis equal; colorbar; axis([0 Lx 0 Lz]);
+
+figure(2)
+surf(xIn,zIn,wInit(xIn,zIn) + wBkg(xIn,zIn),'edgecolor','none')
+title('Initial w + Background')
+shading flat; axis equal; colorbar; axis([0 Lx 0 Lz]);
+
+figure(3)
+%surf(xIn,zIn,sInit(xIn,zIn) + sBkg(xIn,zIn),'edgecolor','none')
+pcolor(xIn,zIn,sInit(xIn,zIn) + sBkg(xIn,zIn))
+%view([0 90]); alpha(0.75);
+title('Initial s + Background')
+shading flat; axis equal; colorbar; axis([0 Lx 0 Lz]);
+hold on;
+contour(xIn,zIn,sInit(xIn,zIn) + sBkg(xIn,zIn),[0 0],'r-')
+hold off;
+
+figure(22)
+%surf(xIn,zIn,sInit(xIn,zIn) + sBkg(xIn,zIn),'edgecolor','none')
+pcolor(xIn,zIn,sBkg(xIn,zIn))
+%view([0 90]); alpha(0.75);
+shading flat; axis equal; colorbar; axis([0 Lx 0 Lz]);
+hold on;
+contour(xIn,zIn,sBkg(xIn,zIn),[0 0],'r-')
+hold off;
+
+%% Solve for background pressure
+
+% Define background density
+rhoBkg = rho(xIn,zIn,sBkg(xIn,zIn));
+
+% Differentiate rho for source to background pressure
+% Corrects so that rho is 0 top and bottom boundary adds non-zero part
+% back.
+dzrhoBkg = ([rhoBkg(2,:)+cm*bbeta*(zIn(2,:)-h); rhoBkg(3:end,:); -(rhoBkg(end,:)+cp*bbeta*(zIn(end,:)-h))] - [-(rhoBkg(1,:)+cm*bbeta*(zIn(1,:)-h)); rhoBkg(1:end-2,:); rhoBkg(end-1,:)+cp*bbeta*(zIn(end-1,:)-h)])/dz/2;
+dzrhoBkg(1,:) = dzrhoBkg(1,:) - bbeta*cm;
+dzrhoBkg(end,:) = dzrhoBkg(end,:) - bbeta*cp;
+
+% Solve for background pressure
+PBkg = PoissonIIM_V1p1(-g*dzrhoBkg,x,z,PBkgBCB,PBkgBCT,sBkg(xIn,zIn));
+
+% Extract mid pressure for x--uniformity
+mid = round(size(PBkg,2));
+PBkg = repmat(PBkg(:,mid),1,size(PBkg,2));
+
+%% Initial condition for velocity
+uOld = uInit(xIn,zIn);
+wOld = wInit(xIn,zIn);
+
+%% Obtain s_n+1/2 using one step of Heun's method
+s0 = sInit(xIn,zIn);% define initial s
+rho0 = rho(xIn,zIn,s0 + sBkg(xIn,zIn)) - rhoBkg;% define initial rho
+%rho0 = rho(xIn,zIn,s0);% define initial rho
+
+%% Calculate rho_z as source for initial pressure
+% Assumes rho is 0 top and bottom boundary.
+% Note that this is true for disturbance density
+dzrho0 = ( [rho0(2:end,:); -rho0(end,:)] ...
+                 -  [-rho0(1,:); rho0(1:end-1,:)] )/dz/2;
+
+%% Define top/bottom Neumann boundary conditions for pressure
+T = @(x) PBCT(x,0);
+B = @(x) PBCB(x,0);
+
+%% Compute old velocity divergence for divergence free update
+uOldx = ([uOld(:,2:end) uOld(:,1)] - [uOld(:,end) uOld(:,1:end-1)])/dx/2;
+wOldz = ( [wOld(2:end,:); -wOld(end,:)] ...
+          -  [-wOld(1,:); wOld(1:end-1,:)] )/dz/2;
+
+%% Solve for Pressure at t = 0
+%P = Poisson(-g*dzrho0,x,z,B,T);
+P = PoissonIIM_V1p1(-g*dzrho0 + (uOldx + wOldz),x,z,B,T,sBkg(xIn,zIn) + s0);
+
+figure(4)
+surf(x,z,P,'edgecolor','none');
+title('Initial disturbance pressure')
+xlabel('x')
+ylabel('z')
+axis equal; colorbar; axis([0 Lx 0 Lz]);
+
+ux = (uOld(2:end-1,3:end) - uOld(2:end-1,1:end-2))/dx/2;
+wz = (wOld(3:end,2:end-1) - wOld(1:end-2,2:end-1))/dz/2;
+figure(5)
+surf(xIn(2:end-1,2:end-1),zIn(2:end-1,2:end-1),ux + wz,'edgecolor','none');
+title('Initial velocity divergence')
+xlabel('x')
+ylabel('z')
+axis equal; colorbar; axis([0 Lx 0 Lz]);
+
+tmp = rho0+rhoBkg;
+figure(55)
+plot(zIn(:,1),tmp(:,round(size(tmp,1)/4)),'r.-')
+title(['z-slice of rho_nph'])
+
+tmp = P(2:end-1,:);
+figure(56)
+plot(zIn(:,1),tmp(:,round(size(tmp,1)/4)),'r.-')
+title(['z-slice of disturbance P'])
+
+figure(44)
+%surf(x,z,P+PBkg,'edgecolor','none');
+contourf(x,z,P+PBkg,-2.5:.125:0);
+title('Initial pressure')
+xlabel('x')
+ylabel('z')
+axis equal; colorbar; axis([0 Lx 0 Lz]);
+
+figure(45)
+contourf(x,z,PBkg,-2.5:.125:0);
+title('Initial pressure')
+xlabel('x')
+ylabel('z')
+axis equal; colorbar; axis([0 Lx 0 Lz]);
+
+fig = figure(66);
+subplot(1,2,1)
+surf(x,z,P)
+title(['Perturbed P at time = 0'])
+shading flat; axis equal; colorbar; axis([0 Lx 0 Lz]);
+
+subplot(1,2,2)
+pcolor(xIn,zIn,s0 + sBkg(xIn,zIn))
+title(['s at time = 0'])
+shading flat; axis equal; colorbar; axis([0 Lx 0 Lz]);
+hold on;
+contour(xIn,zIn,sBkg(xIn,zIn) + s0,[0 0],'r-')
+hold off;
+
+str = ['TalkSolns/TalkSol' num2str(0) '.jpg'];
+saveas(fig,str);
+disp(['Saved at time t = 0'])
+
+disp('pause')
+pause
+
+%% Compute P_z for wTld update
+P_z = (P(3:end,:) - P(1:end-2,:))/2/dz;
+
+%% Compute \tilde{y}_{i+1} for Heun's meth. update 
+wTld = wOld - (dt/2)*(P_z + g*rho0);
+
+%% Update s using Heun's method
+s_nph = s0 - (dt/4)*(wOld + wTld);
+
+%% Clear tmp variables
+clear s0 rho0 dzrho0 wTld
+
+%% Obtain rho_n+1/2 from s_n+1/2
+rho_nph = rho(xIn,zIn,s_nph + sBkg(xIn,zIn)) - rhoBkg;
+
+%figure(555)
+%plot(zIn(:,1),rho_nph(:,round(size(rho_nph,1)/4)),'r.-')
+%title(['z-slice of rho_nph'])
+%pause
+
+%% Begin time-stepping
+for n=1:N
+    
+    time = n*dt;
+
+    disp(['Time: ' num2str(time) '; Step: ' num2str(n) '/' num2str(N)])
+
+    %% Compute drho/dz at n+1/2
+    
+    % Assumes rho is periodic
+    %dzrho_nph = ([rho_nph(2:end,:); rho_nph(1,:)] - [rho_nph(end,:); ...
+    %                    rho_nph(1:end-1,:)])/dz/2;
+    
+    % Assumes rho is 0 top and bottom boundary
+    dzrho_nph = ([rho_nph(2:end,:); -rho_nph(end,:)] ...
+                 -  [-rho_nph(1,:); rho_nph(1:end-1,:)] )/dz/2;
+
+    % Corrects so that rho is 0 top and bottom boundary adds non-zero part back
+    % No longer needed for separated background solve
+    %dzrho_nph = ([rho_nph(2,:)+cm*bbeta*(zIn(2,:)-h); ...
+    %              rho_nph(3:end,:); -(rho_nph(end,:)+cp*bbeta*(zIn(end,:)-h))]...
+    %             - [-(rho_nph(1,:)+cm*bbeta*(zIn(1,:)-h)); rho_nph(1:end-2,:);...
+    %                rho_nph(end-1,:)+cp*bbeta*(zIn(end-1,:)-h)])/dz/2;
+    %dzrho_nph(1,:) = dzrho_nph(1,:) - bbeta*cm;
+    %dzrho_nph(end,:) = dzrho_nph(end,:) - bbeta*cp;
+
+    %% Compute old velocity divergence for divergence free update
+    uOldx = ([uOld(:,2:end) uOld(:,1)] - [uOld(:,end) uOld(:,1:end-1)])/dx/2;
+    wOldz = ( [wOld(2:end,:); -wOld(end,:)] ...
+                 -  [-wOld(1,:); wOld(1:end-1,:)] )/dz/2;
+    
+    %% Solve for Pressure at n+1/2 (note the additional velocity
+    %% divergence in source this is for divergence free update)
+    %P = Poisson(-g*dzrho_nph,x,z,B,T);
+    P = PoissonIIM_V1p1(-g*dzrho_nph + (uOldx + wOldz),x,z,B,T,sBkg(xIn,zIn) + s_nph);
+    %P = PoissonIIM_V1(-g*dzrho_nph,x,z,B,T,sBkg(xIn,zIn) + s_nph);
+    
+    if 0
+        figure(100)
+        surf(x,z,P,'EdgeColor','none')
+        xlabel('x')
+        ylabel('z')
+        P(2,1:5)
+        P(2,end-4:end)
+        P(end-1,1:5)
+        P(end-1,end-4:end)
+    end
+    
+    %% Compute grad P
+    P_z = (P(3:end,:) - P(1:end-2,:))/2/dz;
+    P_x = ([P(2:end-1,2:end) P(2:end-1,1)] - [P(2:end-1,end) P(2:end-1,1:end-1)])/2/dx;
+
+    %figure(222)
+    %plot(zIn(:,1),P_z(:,round(size(P_z,1)/4)),'r.-')
+    %title(['z-slice of P_z at time = ' num2str(time)])
+    %hold on
+    %plot(zIn(:,1),g*rho_nph(:,round(size(rho_nph,1)/4)),'b.-')
+    %plot(zIn(:,1),P_z(:,round(size(P_z,1)/4))+g*rho_nph(:,round(size(rho_nph,1)/4)),'k.-')
+    %hold off
+    %legend('P_z','rho_nph','P_z+g*rho_nph')
+    
+    %figure(101)
+    %surf(xIn,zIn,P_x)
+    %xlabel('x')
+    %ylabel('z')
+    
+    %% Step velocity forward in time
+    uNew = uOld - dt*(P_x);
+    wNew = wOld - dt*(P_z + g*rho_nph);
+    uOld = uNew;
+    wOld = wNew;
+    
+    %% Step entropy forward in time
+    s_nmh = s_nph;
+    s_nph = s_nph - dt*wNew;
+
+    %% Obtain updated density from updated entropy
+    rho_nph = rho(xIn,zIn,s_nph + sBkg(xIn,zIn)) - rhoBkg;
+
+    if n == 1
+        uMax = max(uNew(:));
+        uMin = min(uNew(:));
+        wMax = max(wNew(:));
+        wMin = min(wNew(:));
+    end
+
+    if err
+        uMaxOut = max(uNew(:));
+        disp(['uMax: ' num2str(uMaxOut)])
+        uError = uNew - uExact(xIn,zIn,time);
+        disp(['uError: ' num2str(max(uError(:)))])
+        wError = wNew - wExact(xIn,zIn,time);
+        disp(['wError: ' num2str(max(wError(:)))])
+        SError = s_nph - SExact(xIn,zIn,time+dt/2);
+        disp(['SError: ' num2str(max(SError(:)))])
+        %% Correct for unknown constant
+        const = PExact(x(5,5),z(5,5),time-dt/2) - P(5,5);
+        P = P + const;
+        PError = P(2:end-1,:) - PExact(xIn,zIn,time-dt/2);
+        disp(['PError: ' num2str(max(PError(:)))])
+    end
+
+    if 0
+        %% Plot velocity and error
+        fig = figure(1);
+        
+        subplot(2,2,1)
+        pcolor(xIn,zIn,uNew)
+        title(['Computed u at time = ' num2str(time)])
+        shading flat; axis equal; colorbar; axis([0 Lx 0 Lz]);
+        caxis([uMin,uMax])
+
+        subplot(2,2,2)
+        pcolor(xIn,zIn,wNew)
+        title(['Computed w at time = ' num2str(time)])
+        shading flat; axis equal; colorbar; axis([0 Lx 0 Lz]);
+        caxis([wMin,wMax])
+
+        subplot(2,2,3)
+        pcolor(xIn,zIn,s_nph)
+        title(['Computed s at time = ' num2str(time+dt/2)])
+        shading flat; axis equal; colorbar; axis([0 Lx 0 Lz]);
+        hold on;
+        contour(xIn,zIn,s_nph,[0 0],'r-')
+        hold off;
+        
+        subplot(2,2,4)
+        pcolor(x,z,P)
+        title(['Computed P at time = ' num2str(time-dt/2)])
+        shading flat; axis equal; colorbar; axis([0 Lx 0 Lz]);
+    end
+
+    if vis
+
+        figure(1)
+        surf(xIn,zIn,uNew,'edgecolor','none')
+        title(['Computed u at time = ' num2str(time)])
+        shading flat; axis equal; colorbar; axis([0 Lx 0 Lz]);
+        xlabel('x'); ylabel('z') 
+        uMintmp = min(uNew(:));
+        uMaxtmp = max(uNew(:));
+        caxis([uMintmp,uMaxtmp]);
+        
+        figure(2)
+        surf(xIn,zIn,wNew,'edgecolor','none')
+        title(['Computed w at time = ' num2str(time)])
+        shading flat; axis equal; colorbar; axis([0 Lx 0 Lz]);
+        caxis([uMin,uMax]);
+        %tmp = linspace(-.025,.025,10);
+        %tmp = [tmp 0];
+        %contour(xIn,zIn,wNew,tmp,'r-')
+        %intrfc = (s_nph + s_nmh)/2;
+        %hold on
+        %contour(xIn,zIn,intrfc,[0 0],'k:')
+        %hold off
+        %axis equal;
+        
+        figure(3)
+        surf(xIn,zIn,s_nph,'edgecolor','none')
+        view([0 90]); alpha(0.75);
+        title(['Computed s at time = ' num2str(time+dt/2)])
+        shading flat; axis equal; colorbar; axis([0 Lx 0 Lz]);
+        hold on;
+        contour(xIn,zIn,sBkg(xIn,zIn) + s_nph,[0 0],'r-')
+        hold off;
+
+        figure(4)
+        surf(x,z,P)
+        title(['Computed P at time = ' num2str(time-dt/2)])
+        shading flat; axis equal; colorbar; axis([0 Lx 0 Lz]);
+
+        ux = (uNew(2:end-1,3:end) - uNew(2:end-1,1:end-2))/dx/2;
+        wz = (wNew(3:end,2:end-1) - wNew(1:end-2,2:end-1))/dz/2;
+        figure(5)
+        surf(xIn(2:end-1,2:end-1),zIn(2:end-1,2:end-1),ux + wz,'edgecolor','none');
+        title(['Computed velocity divergence at time = ' num2str(time)])
+        xlabel('x')
+        ylabel('z')
+        axis equal; colorbar; axis([0 Lx 0 Lz]);
+        disp(['Max divergence: ' num2str(max(ux(:) + wz(:)))])
+
+        fig = figure(66);
+        subplot(1,2,1)
+        surf(x,z,P)
+        title(['Perturbed P at time = ' num2str(time-dt/2)])
+        shading flat; axis equal; colorbar; axis([0 Lx 0 Lz]);
+
+        subplot(1,2,2)
+        pcolor(xIn,zIn,s_nph + sBkg(xIn,zIn))
+        title(['s at time = ' num2str(time+dt/2)])
+        shading flat; axis equal; colorbar; axis([0 Lx 0 Lz]);
+        hold on;
+        contour(xIn,zIn,sBkg(xIn,zIn) + s_nph,[0 0],'r-')
+        hold off;
+        if time<=3
+            str = ['TalkSolns/TalkSol' num2str(n) '.jpg'];
+            saveas(fig,str);
+            disp(['Saved at time t = ' num2str(time)])
+        end
+        
+        figure(6)
+        subplot(2,2,1)
+        %plot(xIn(1,:),uNew(round(3*size(uNew,1)/4),:))
+        %title(['x-slice of u at time = ' num2str(time)])
+        plot(zIn(:,1),uNew(:,round(size(uNew,1)/2)),'b.-')
+        hold on
+        plot(zIn(:,1),uNew(:,round(size(uNew,1)/4)),'r.-')
+        title(['z-slice of u at time = ' num2str(time)])
+        hold off
+        
+        subplot(2,2,2)
+        plot(zIn(:,1),wNew(:,round(size(wNew,1)/2)),'b.-')
+        title(['z-slice of w at time = ' num2str(time)])
+        hold on
+        plot(zIn(:,1),wNew(:,round(size(wNew,1)/4)),'r.-')
+        title(['z-slice of w at time = ' num2str(time)])
+        hold off
+        
+        subplot(2,2,3)
+        plot(z(:,1),P(:,round(size(x,2)/2)),'b.-')
+        title(['z-slice of P at time = ' num2str(time-dt/2)])
+        axis tight
+        hold on
+        plot(z(:,1),P(:,round(size(x,1)/4)),'r.-')
+        title(['z-slice of P at time = ' num2str(time-dt/2)])
+        hold off
+        
+        subplot(2,2,4)
+        plot(zIn(:,1),s_nph(:,round(size(uNew,1)/2)),'b.-')
+        title(['z-slice of S at time = ' num2str(time+dt/2)])
+        axis tight
+        hold on
+        plot(zIn(:,1),s_nph(:,round(size(uNew,1)/4)),'r.-')
+        hold off
+
+        %figure(7)
+        %plot(x(end,:),P(end,:),'rx-')
+        %hold on
+        %plot(x(end,:),P(end-1,:),'.-')
+        %hold off
+        %FixingError = P(end,end) - P(end-1,end)
+        %P(end,end)
+        %P(end-1,end)
+        
+        %disp('pause')
+        %pause
+        
+        [pt,loc] = max(P(round(3*size(uNew,1)/4),:));
+        disp(['Location of max: ' num2str(xIn(1,loc)) ' @ time: ' num2str(time)])
+        disp('-------------------------------------------')
+        
+        if 0
+            figure(2)
+            subplot(2,2,1)
+            surf(xIn,zIn,uError,'edgecolor','none')
+            xlabel('x')
+            ylabel('z')
+            title('Error in u')
+            
+            subplot(2,2,2)
+            surf(xIn,zIn,wError,'edgecolor','none')
+            xlabel('x')
+            ylabel('z')
+            title('Error in w')
+            
+            subplot(2,2,3)
+            surf(xIn,zIn,SError,'edgecolor','none')
+            xlabel('x')
+            ylabel('z')
+            title('Error in S')
+            
+            subplot(2,2,4)
+            surf(xIn,zIn,PError,'edgecolor','none')
+            xlabel('x')
+            ylabel('z')
+            title('Error in P')
+            drawnow;
+            %pause
+        end
+        %disp('pause')
+        %pause
+    end
+
+    drawnow
+    %pause
+    
+    if (~mod(n,round(N/20)) | n==1) & sv
+        str = ['AsymSol_t' num2str(time) '.jpg'];
+        saveas(fig,str);
+        disp(['Saved at time t = ' num2str(time)])
+    end
+    
+end

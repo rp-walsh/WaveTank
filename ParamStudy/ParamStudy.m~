@@ -1,0 +1,31 @@
+% Define solution parameters
+
+g = 9.81;
+%bbeta = 1; % Entropy coeff 
+%cp = 2; % above interface
+cp = linspace(0,5,1000); % above interface
+%cm = 1; % below interface
+cm = linspace(0,5,1000); % below interface
+H = 1; % height of domain
+h = 1/2; % height of the interface
+%h = 0.4167; % height of the interface
+%h = sqrt(2)/2; % height of the interface
+%h = 0.45; % height of the interface
+n = 2; % fourier number (even?)
+%n = 14; % fourier number (even?)
+k = n*pi; % x wave number
+
+C = meshgrid(cp,cm);
+
+%% Define verticle wave strcture
+alphap = @(k,omega) sqrt(g*cp*k.^2./omega.^2 - k.^2);
+alpham = @(k,omega) sqrt(g*cm*k.^2./omega.^2 - k.^2);
+
+%% Define dispersion relation
+F = @(k,w) alpham(k,w).*sin(alpham(k,w)*h).*cos(alphap(k,w)*(h-H)).*...
+    (g*(cp-cm)./(g*cm-w.^2)+1) - alphap(k,w).*sin(alphap(k,w)*(h-H)).*cos(alpham(k,w)*h);
+
+omega = fzero(@(w) F(k,w),sqrt(g/2));
+
+SolnStructP = g*cp/omega^2
+SolnStructM = g*cm/omega^2
