@@ -32,7 +32,7 @@ n = 2^(7)+2;
 %dt = tFinal/2^(8);
 %dt = tFinal/2^(7);
 tFinal = 35.0;
-dt = tFinal/2^(10);
+dt = tFinal/2^(9);
 
 %% Turn plotting/saving on/off
 vis = true;

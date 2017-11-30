@@ -112,7 +112,7 @@ wTld = wOld - (dt/2)*(P_z + g*rho0);
 errorPz = P_z - PzExact(xIn,zIn,0);
 errorRho = rho0 - rhoExact(xIn,zIn,0);
 
-if 0
+if 1
     figure(111)
     plot(zIn(:,1),P_z(:,round(end/2)) + g*rho0(:,round(end/2)),'b.-')
     title('P_z + g*\rho')
@@ -230,7 +230,7 @@ for n=1:N
         disp(['PError: ' num2str(max(PError(:)))])
     end
 
-    if vis
+    if vis% & ~mod(n,round(N/10))
 
         figure(1)
         surf(xIn,zIn,uNew,'edgecolor','none')
